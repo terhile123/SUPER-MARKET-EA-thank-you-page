@@ -1,188 +1,243 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState } from 'react';
-import { Navbar } from './components/Navbar';
-import { OrderHeader } from './components/OrderHeader';
-import { TrackingTimeline } from './components/TrackingTimeline';
-import { QuickAddItems } from './components/QuickAddItems';
-import { ReceiptSummary } from './components/ReceiptSummary';
-import { LoyaltyCard } from './components/LoyaltyCard';
-import { OrderActions } from './components/OrderActions';
-import { PrintReceiptModal } from './components/PrintReceiptModal';
-import { HelpModal } from './components/HelpModal';
-import { initialOrderData, quickAddRecommendations } from './data/initialOrder';
-import { OrderDetails, GroceryItem, OrderStatus } from './types';
-import { CheckCircle2, ShoppingBag, Heart, ShieldCheck, PhoneCall } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { CheckCircle2, ShieldCheck, Download, Terminal, Globe, ArrowRight } from 'lucide-react';
+import { ForexNavbar } from './components/ForexNavbar';
+import { ForexLandingPage } from './components/ForexLandingPage';
+import { ForexThankYouHeader } from './components/ForexThankYouHeader';
+import { ForexEmailAccessCard } from './components/ForexEmailAccessCard';
+import { ForexLicenseVault } from './components/ForexLicenseVault';
+import { ForexSetupTimeline } from './components/ForexSetupTimeline';
+import { ForexVpsCard } from './components/ForexVpsCard';
+import { ForexAddons } from './components/ForexAddons';
+import { ForexReceiptModal } from './components/ForexReceiptModal';
+import { ForexSupportModal } from './components/ForexSupportModal';
+import { initialForexOrder, forexAddons } from './data/forexData';
+import { ForexOrderDetails, ForexEAProduct, BoundAccount, ForexAddon } from './types';
 
-export default function App() {
-  const [order, setOrder] = useState<OrderDetails>(initialOrderData);
-  const [addedItemIds, setAddedItemIds] = useState<string[]>([]);
+export function App() {
+  const [currentView, setCurrentView] = useState<'landing' | 'thankyou'>('thankyou');
+  const [order, setOrder] = useState<ForexOrderDetails>(initialForexOrder);
+  const [addedAddonIds, setAddedAddonIds] = useState<string[]>([]);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
-  const [isHelpModalOpen, setIsHelpModalOpen] = useState<boolean>(false);
+  const [copiedLicense, setCopiedLicense] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
-      setToastMessage((current) => (current === msg ? null : current));
+      setToastMessage((prev) => (prev === msg ? null : prev));
     }, 3500);
   };
 
-  const handleAddItem = (item: GroceryItem) => {
-    if (addedItemIds.includes(item.id)) return;
+  const handleCopyLicense = () => {
+    navigator.clipboard.writeText(order.licenseKey);
+    setCopiedLicense(true);
+    showToast('Cryptographic License Key copied to clipboard!');
+    setTimeout(() => setCopiedLicense(false), 2500);
+  };
 
-    const extraPoints = Math.round(item.price * 10);
+  const handleSelectEA = (ea: ForexEAProduct) => {
     setOrder((prev) => ({
       ...prev,
-      items: [item, ...prev.items],
-      loyalty: {
-        ...prev.loyalty,
-        pointsEarned: prev.loyalty.pointsEarned + extraPoints,
-        totalBalance: prev.loyalty.totalBalance + extraPoints,
-      },
+      product: ea,
+      financials: {
+        ...prev.financials,
+        totalPaid: ea.price,
+        subtotal: ea.originalPrice || ea.price * 1.3,
+        discountAmount: (ea.originalPrice || ea.price * 1.3) - ea.price,
+      }
     }));
-    setAddedItemIds((prev) => [...prev, item.id]);
-    showToast(`Added "${item.name}" to your EA order basket! (+$${item.price.toFixed(2)})`);
+    setCurrentView('thankyou');
+    showToast(`Active License created for ${ea.name}!`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleStatusChange = (newStatus: OrderStatus) => {
-    setOrder((prev) => ({ ...prev, status: newStatus }));
-    const statusLabels: Record<OrderStatus, string> = {
-      received: 'Order Confirmed at Central Hub',
-      picking: 'Shopper Grace is hand-selecting your groceries',
-      quality_check: 'Cold-Chain & Insulated packing check underway',
-      out_for_delivery: 'Out for Delivery in refrigerated van!',
-      delivered: 'Delivered Fresh! Enjoy your groceries',
-    };
-    showToast(`Status updated: ${statusLabels[newStatus]}`);
-  };
-
-  const handleFulfillmentChange = (type: 'delivery' | 'pickup') => {
-    setOrder((prev) => ({ ...prev, fulfillmentType: type }));
-    showToast(
-      type === 'delivery'
-        ? 'Switched to Doorstep Delivery (Today, 5:15 PM – 5:45 PM)'
-        : 'Switched to EA Drive-Up Express Pickup at Bay 3'
-    );
-  };
-
-  const handleUpdateInstructions = (instructions: string) => {
+  const handleBindAccount = (account: BoundAccount) => {
     setOrder((prev) => ({
       ...prev,
-      deliveryAddress: {
-        ...prev.deliveryAddress,
-        instructions,
-      },
+      boundAccounts: [...prev.boundAccounts, account],
     }));
-    showToast('Drop-off delivery notes saved successfully!');
   };
 
-  const handleContinueShopping = () => {
-    showToast('Redirecting to Supermarket EA Aisles & Fresh Deals...');
+  const handleUnbindAccount = (accountNumber: string) => {
+    setOrder((prev) => ({
+      ...prev,
+      boundAccounts: prev.boundAccounts.filter((a) => a.accountNumber !== accountNumber),
+    }));
+    showToast(`Account #${accountNumber} unbound from license.`);
   };
+
+  const handleToggleAddon = (addon: ForexAddon) => {
+    if (addedAddonIds.includes(addon.id)) {
+      setAddedAddonIds((prev) => prev.filter((id) => id !== addon.id));
+      showToast(`Removed ${addon.title} from active desk.`);
+    } else {
+      setAddedAddonIds((prev) => [...prev, addon.id]);
+      showToast(`Activated ${addon.title}! Added to license invoice.`);
+    }
+  };
+
+  const handleUpdateEmail = (newEmail: string) => {
+    setOrder((prev) => ({
+      ...prev,
+      customerEmail: newEmail,
+    }));
+  };
+
+  const handleScrollToDownloads = () => {
+    const el = document.getElementById('license-downloads-vault');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const activeAddonsList = forexAddons.filter((a) => addedAddonIds.includes(a.id));
 
   return (
-    <div className="min-h-screen bg-slate-100/60 font-sans text-slate-800 flex flex-col selection:bg-emerald-100 selection:text-emerald-900">
-      {/* Navigation Header */}
-      <Navbar
+    <div className="min-h-screen bg-[#0A0E17] text-slate-100 font-sans flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
+      {/* Top Navbar */}
+      <ForexNavbar
+        currentView={currentView}
+        onSelectView={setCurrentView}
         orderNumber={order.orderNumber}
-        customerName={order.customerName}
-        onPrint={() => setIsPrintModalOpen(true)}
-        onOpenHelp={() => setIsHelpModalOpen(true)}
+        onOpenReceipt={() => setIsReceiptOpen(true)}
+        onOpenHelp={() => setIsHelpOpen(true)}
       />
 
-      {/* Main Thank You Page Container */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* Order Confirmation Greeting Banner */}
-        <OrderHeader
-          order={order}
-          onFulfillmentChange={handleFulfillmentChange}
-        />
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+        {currentView === 'landing' ? (
+          <ForexLandingPage
+            onSelectEA={handleSelectEA}
+            onGoToOrder={() => setCurrentView('thankyou')}
+          />
+        ) : (
+          <div className="space-y-8">
+            {/* Thank You Greeting & Active Order Header */}
+            <ForexThankYouHeader
+              order={order}
+              onCopyLicense={handleCopyLicense}
+              copiedLicense={copiedLicense}
+              onScrollToDownloads={handleScrollToDownloads}
+            />
 
-        {/* Live Tracking & Shopper Status */}
-        <TrackingTimeline
-          order={order}
-          onStatusChange={handleStatusChange}
-        />
+            {/* Check Email For Bot Access Card */}
+            <ForexEmailAccessCard
+              order={order}
+              onUpdateEmail={handleUpdateEmail}
+              onTriggerToast={showToast}
+            />
 
-        {/* Quick Add Forgotten Groceries Window */}
-        <QuickAddItems
-          recommendations={quickAddRecommendations}
-          onAddItem={handleAddItem}
-          addedItemIds={addedItemIds}
-        />
+            {/* License Vault & Account Binding & Downloads */}
+            <ForexLicenseVault
+              order={order}
+              onBindAccount={handleBindAccount}
+              onUnbindAccount={handleUnbindAccount}
+              onTriggerToast={showToast}
+            />
 
-        {/* Itemized Digital Receipt Breakdown */}
-        <ReceiptSummary
-          order={order}
-          onPrint={() => setIsPrintModalOpen(true)}
-        />
+            {/* 4-Step Deployment Timeline */}
+            <ForexSetupTimeline
+              onTriggerToast={showToast}
+              onOpenHelp={() => setIsHelpOpen(true)}
+            />
 
-        {/* EA Club Rewards & Points Card */}
-        <LoyaltyCard loyalty={order.loyalty} />
+            {/* Low-Latency VPS Card */}
+            <ForexVpsCard
+              order={order}
+              onTriggerToast={showToast}
+            />
 
-        {/* Alerts, Drop-off notes, 5-Star Feedback, and Guarantee */}
-        <OrderActions
-          order={order}
-          onUpdateInstructions={handleUpdateInstructions}
-          onContinueShopping={handleContinueShopping}
-        />
+            {/* Quantitative Add-ons */}
+            <ForexAddons
+              addons={forexAddons}
+              addedAddonIds={addedAddonIds}
+              onToggleAddon={handleToggleAddon}
+            />
+
+            {/* Bottom Explore Other EAs Banner */}
+            <div className="p-6 rounded-3xl bg-gradient-to-r from-[#121C2D] to-[#0E1624] border border-[#21324B] flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h4 className="font-bold text-base text-white">
+                  Want to explore other quantitative algorithmic strategies?
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Browse our multi-pair trend followers and automated prop-firm pass evaluation EAs.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentView('landing');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="px-5 py-2.5 bg-[#172336] hover:bg-[#203049] text-cyan-400 border border-[#273B57] rounded-xl text-xs font-mono font-bold transition flex items-center gap-2 shrink-0"
+              >
+                <span>View All Forex EAs</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
-      {/* Supermarket EA Footer */}
-      <footer className="bg-white border-t border-slate-200/80 py-8 px-4 text-xs text-slate-500 mt-auto">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-emerald-700 text-white flex items-center justify-center">
-              <ShoppingBag className="w-3.5 h-3.5" />
+      {/* Footer */}
+      <footer className="bg-[#070A10] border-t border-[#182335] py-10 px-6 text-xs text-slate-400 mt-auto font-mono">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded bg-cyan-500 text-slate-950 flex items-center justify-center font-bold text-xs">
+              FX
             </div>
-            <span className="font-bold text-slate-800">Supermarket EA</span>
-            <span>•</span>
-            <span>Customer Care: 1-800-555-0199</span>
+            <span className="font-bold text-white">ALGOFX QUANT LABS</span>
+            <span className="text-slate-600">•</span>
+            <span>Algorithmic Trading & EA Automation Systems</span>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>Freshness Guaranteed</span>
+          <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
+            <span>MetaTrader 4 & 5 Compatible</span>
             <span>•</span>
-            <span>Cold-Chain Monitored</span>
+            <span>Zero-Martingale Architecture</span>
             <span>•</span>
-            <span>100% Recyclable Packaging</span>
+            <span>London Equinix LD4 Co-located</span>
           </div>
         </div>
       </footer>
 
-      {/* Toast Notification Banner */}
+      {/* Receipt / Invoice Modal */}
+      {isReceiptOpen && (
+        <ForexReceiptModal
+          order={order}
+          activeAddons={activeAddonsList}
+          onClose={() => setIsReceiptOpen(false)}
+        />
+      )}
+
+      {/* Support & FAQ Modal */}
+      {isHelpOpen && (
+        <ForexSupportModal
+          orderNumber={order.orderNumber}
+          onClose={() => setIsHelpOpen(false)}
+          onTriggerToast={showToast}
+        />
+      )}
+
+      {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 15, scale: 0.95 }}
-            className="fixed bottom-5 right-5 z-50 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-3 text-xs"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="fixed bottom-6 right-6 z-50 max-w-sm bg-[#111A29] text-white px-5 py-3.5 border border-cyan-500/50 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-mono"
           >
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="font-medium">{toastMessage}</span>
+            <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span className="text-slate-200">{toastMessage}</span>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Printable Thermal Receipt Modal */}
-      <PrintReceiptModal
-        order={order}
-        isOpen={isPrintModalOpen}
-        onClose={() => setIsPrintModalOpen(false)}
-      />
-
-      {/* Customer Care / Support Modal */}
-      <HelpModal
-        isOpen={isHelpModalOpen}
-        onClose={() => setIsHelpModalOpen(false)}
-        orderNumber={order.orderNumber}
-      />
     </div>
   );
 }
+export default App;
