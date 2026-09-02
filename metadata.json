@@ -1,0 +1,6 @@
+{
+  "name": "EA Supermarket - Order Confirmation",
+  "description": "Thank you and real-time order confirmation page for EA Supermarket customers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
